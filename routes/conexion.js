@@ -151,7 +151,7 @@ router.post('/register', (req, res) => {
                     }
 
                     // Enviar correo de verificación
-                    const verificationLink = `https://api-interna-gy71.onrender.com/verify-email?token=${token}&correo=${correo}`;
+                    const verificationLink = `https://api-interna.onrender.com/verify-email?token=${token}&correo=${correo}`;
                     const transporter = nodemailer.createTransport({
                         service: 'gmail',
                         auth: {
