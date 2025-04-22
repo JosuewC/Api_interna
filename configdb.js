@@ -12,6 +12,7 @@ function connectDatabase() {
         password: process.env.BDPASS,
         database: process.env.BDNAME,
         port: process.env.BDPORT || 3306
+        
     });
 
     // Intentar conectar a la base de datos
