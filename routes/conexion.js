@@ -96,62 +96,69 @@ router.post('/reserva', (req, res) => {
 
 // Registrar cliente
 router.post('/register', (req, res) => {
-    const { nombre, identificacion, celular, correo, usuario, contrasena, mascota, cantante, materia } = req.body;
+    const {
+        nombre, identificacion, celular, correo,
+        usuario, contrasena, mascota, cantante, materia
+    } = req.body;
 
-    if (!nombre || !identificacion || !celular || !correo || !usuario || !contrasena || !mascota || !cantante || !materia) {
-        return res.status(400).json({ success: false, message: 'Por favor, complete todos los campos.' });
+    if (!nombre || !identificacion || !celular || !correo ||
+        !usuario || !contrasena || !mascota || !cantante || !materia) {
+        return res.status(400).json({ success: false, message: 'Faltan campos obligatorios.' });
     }
 
-    const token = uuidv4(); // Genera un token único para la verificación
-
-    // Hash de la contraseña y respuestas a las preguntas
     const hashedPassword = hashValue(contrasena);
-    const hashedMascota = hashValue(mascota);  // Hash de la respuesta de la mascota
-    const hashedCantante = hashValue(cantante);  // Hash de la respuesta del cantante
-    const hashedMateria = hashValue(materia);  // Hash de la respuesta de la materia
+    const hashedMascota = hashValue(mascota);
+    const hashedCantante = hashValue(cantante);
+    const hashedMateria = hashValue(materia);
+    const token = uuidv4();
 
-    // Verificar si la identificación ya existe
-    const checkClienteQuery = 'SELECT id FROM clientes WHERE identificacion = ?';
-    connection.query(checkClienteQuery, [identificacion], (err, result) => {
+    // 1. Verificar si ya existe
+    const checkQuery = 'SELECT id FROM clientes WHERE identificacion = ?';
+    connection.query(checkQuery, [identificacion], (err, results) => {
         if (err) {
-            console.error('Error checking client:', err);
-            return res.status(500).json({ success: false, message: 'Error checking client.' });
+            console.error('Error al verificar cliente:', err);
+            return res.status(500).json({ success: false, message: 'Error al verificar el cliente.' });
         }
 
-        if (result.length > 0) {
-            // La identificación ya existe
-            return res.status(400).json({ success: false, message: 'La identificación ya está registrada.' });
+        if (results.length > 0) {
+            return res.status(400).json({ success: false, message: 'Cliente ya registrado.' });
         }
 
-        // Si no existe, registrar al cliente
-        const insertClienteQuery = `INSERT INTO clientes (nombre, identificacion, celular, correo, usuario, contrasena) 
-                                    VALUES (?, ?, ?, ?, ?, ?)`;
-        connection.query(insertClienteQuery, [nombre, identificacion, celular, correo, usuario, hashedPassword], (err) => {
+        // 2. Insertar cliente
+        const insertCliente = `
+            INSERT INTO clientes (nombre, identificacion, celular, correo, usuario, contrasena)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        connection.query(insertCliente, [nombre, identificacion, celular, correo, usuario, hashedPassword], (err) => {
             if (err) {
-                console.error('Error inserting client:', err);
-                return res.status(500).json({ success: false, message: 'Error al registrar el cliente.' });
+                console.error('Error al insertar cliente:', err);
+                return res.status(500).json({ success: false, message: 'Error al registrar cliente.' });
             }
 
-            // Insertar las respuestas de validación (encriptadas)
-            const insertValidacionQuery = `INSERT INTO validacion (identificacion, mascota, cantante, materia) 
-                                           VALUES (?, ?, ?, ?)`;
-            connection.query(insertValidacionQuery, [identificacion, hashedMascota, hashedCantante, hashedMateria], (err) => {
+            // 3. Insertar preguntas de validación
+            const insertValidacion = `
+                INSERT INTO validacion (identificacion, mascota, cantante, materia)
+                VALUES (?, ?, ?, ?)
+            `;
+            connection.query(insertValidacion, [identificacion, hashedMascota, hashedCantante, hashedMateria], (err) => {
                 if (err) {
-                    console.error('Error inserting validation answers:', err);
-                    return res.status(500).json({ success: false, message: 'Error al registrar las respuestas de validación.' });
+                    console.error('Error al insertar validación:', err);
+                    return res.status(500).json({ success: false, message: 'Error al guardar validación.' });
                 }
 
-                // Insertar el token de verificación
-                const insertTokenQuery = `INSERT INTO tokens_verificacion (correo, token, fecha_creacion) 
-                                          VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE token = ?, fecha_creacion = NOW()`;
-                connection.query(insertTokenQuery, [correo, token, token], (err) => {
+                // 4. Insertar token de verificación
+                const insertToken = `
+                    INSERT INTO tokens_verificacion (correo, token, fecha_creacion)
+                    VALUES (?, ?, NOW()) 
+                    ON DUPLICATE KEY UPDATE token = ?, fecha_creacion = NOW()
+                `;
+                connection.query(insertToken, [correo, token, token], (err) => {
                     if (err) {
-                        console.error('Error inserting token:', err);
-                        return res.status(500).json({ success: false, message: 'Error al generar el token de verificación.' });
+                        console.error('Error al insertar token:', err);
+                        return res.status(500).json({ success: false, message: 'Error al generar token de verificación.' });
                     }
 
-                    // Enviar correo de verificación
-                    const verificationLink = `https://api-interna.onrender.com/verify-email?token=${token}&correo=${correo}`;
+                    // 5. Enviar correo
                     const transporter = nodemailer.createTransport({
                         service: 'gmail',
                         auth: {
@@ -160,20 +167,24 @@ router.post('/register', (req, res) => {
                         }
                     });
 
+                    const verificationLink = `https://api-interna.onrender.com/verify-email?token=${token}&correo=${correo}`;
                     const mailOptions = {
                         from: process.env.EMAIL_USER,
                         to: correo,
                         subject: 'Verificación de correo',
-                        html: `<p>Para verificar tu correo, haz clic en el siguiente enlace: <a href="${verificationLink}">Verificar correo</a></p>`
+                        html: `<p>Haz clic aquí para verificar tu correo: <a href="${verificationLink}">Verificar correo</a></p>`
                     };
 
                     transporter.sendMail(mailOptions, (err) => {
                         if (err) {
-                            console.error('Error sending email:', err);
+                            console.error('Error al enviar correo:', err);
                             return res.status(500).json({ success: false, message: 'Error al enviar el correo de verificación.' });
                         }
 
-                        res.status(200).json({ success: true, message: 'Cliente registrado con éxito. Correo de verificación enviado.' });
+                        return res.status(200).json({
+                            success: true,
+                            message: 'Cliente registrado con éxito. Verificación enviada al correo.'
+                        });
                     });
                 });
             });
