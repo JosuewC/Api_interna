@@ -80,7 +80,7 @@ router.post('/reserva', (req, res) => {
     }
 
     // Insertar la reserva con el precio proporcionado por el usuario
-    const insertReservaQuery = `INSERT INTO Reservas (nombre, id_dueno, telefono, correo, servicio, precio, fecha) 
+    const insertReservaQuery = `INSERT INTO reservas (nombre, id_dueno, telefono, correo, servicio, precio, fecha) 
                                 VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
     connection.query(insertReservaQuery, [nombre, id_dueno, telefono, correo, servicio, precio, fecha], (err) => {
